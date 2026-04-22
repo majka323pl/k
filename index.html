@@ -1,51 +1,101 @@
-<!DOCTYPE html>
-<html>
+<!DOCTYPE html><html lang="pl">
 <head>
-    <title>Weryfikacja</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #e0e0e0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            text-align: center;
-        }
-        .container {
-            padding: 20px;
-            border: 1px solid #333;
-            border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-            max-width: 600px;
-        }
-        h1 {
-            color: #ff4d4d;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prosty komunikator</title>
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; display:flex; height:100vh; }
+    #sidebar { width:30%; border-right:1px solid #ccc; padding:10px; box-sizing:border-box; }
+    #chat { flex:1; display:flex; flex-direction:column; }
+    #messages { flex:1; overflow-y:auto; padding:10px; border-bottom:1px solid #ccc; }
+    #inputBar { display:flex; padding:10px; gap:10px; }
+    input, button { padding:8px; }
+    .group { padding:6px; cursor:pointer; }
+    .group:hover { background:#eee; }
+  </style>
 </head>
-<body>
+<body><div id="loginScreen" style="margin:auto; text-align:center;">
+  <h2>Logowanie</h2>
+  <input id="loginInput" placeholder="Nick" />
+  <br><br>
+  <button onclick="login()">Zaloguj</button>
+</div><div id="app" style="display:none; width:100%;">
+  <div id="sidebar">
+    <h3>Grupy</h3>
+    <div id="groups"></div>
+    <button onclick="createGroup()">+ Nowa grupa</button>
+  </div>  <div id="chat">
+    <h3 id="groupName" style="padding:10px; margin:0;">Wybierz grupę</h3>
+    <div id="messages"></div>
+    <div id="inputBar">
+      <input id="messageInput" placeholder="Wiadomość..." style="flex:1;" />
+      <button onclick="sendMessage()">Wyślij</button>
+    </div>
+  </div>
+</div><script>
+let user = null;
+let groups = JSON.parse(localStorage.getItem('groups') || '[]');
+let currentGroup = null;
 
-<div class="container" id="error-container">
-    <h1>Błąd</h1>
-    <p>Dostęp zabroniony.</p>
-</div>
+function save() {
+  localStorage.setItem('groups', JSON.stringify(groups));
+}
 
-<script>
-    // Sprawdza, czy User-Agent zawiera słowo "Roblox".
-    const userAgent = navigator.userAgent;
-    const isRoblox = userAgent.includes("Roblox");
+function login() {
+  const val = document.getElementById('loginInput').value.trim();
+  if (!val) return;
+  user = val;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  renderGroups();
+}
 
-    // Jeśli User-Agent to Roblox, zwraca kod Lua.
-    if (isRoblox) {
-        document.body.innerHTML = 'print("Roblox poprawnie pobiera skrypt z serwera!")';
-    } else {
-        // W przeciwnym razie, wyświetla komunikat o błędzie.
-        document.getElementById('error-container').style.display = 'block';
-    }
-</script>
+function renderGroups() {
+  const el = document.getElementById('groups');
+  el.innerHTML = '';
+  groups.forEach(g => {
+    const div = document.createElement('div');
+    div.className = 'group';
+    div.textContent = g.name;
+    div.onclick = () => selectGroup(g.name);
+    el.appendChild(div);
+  });
+}
 
-</body>
+function createGroup() {
+  const name = prompt('Nazwa grupy:');
+  if (!name) return;
+  groups.push({ name, messages: [] });
+  save();
+  renderGroups();
+}
+
+function selectGroup(name) {
+  currentGroup = groups.find(g => g.name === name);
+  document.getElementById('groupName').textContent = name;
+  renderMessages();
+}
+
+function renderMessages() {
+  const el = document.getElementById('messages');
+  el.innerHTML = '';
+  if (!currentGroup) return;
+  currentGroup.messages.forEach(m => {
+    const div = document.createElement('div');
+    div.innerHTML = `<b>${m.user}:</b> ${m.text}`;
+    el.appendChild(div);
+  });
+  el.scrollTop = el.scrollHeight;
+}
+
+function sendMessage() {
+  const input = document.getElementById('messageInput');
+  const text = input.value.trim();
+  if (!text || !currentGroup) return;
+  currentGroup.messages.push({ user, text });
+  save();
+  input.value = '';
+  renderMessages();
+}
+</script></body>
 </html>

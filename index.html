@@ -1,1 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Remote Panel</title>
+    <style>
+        body { background: #0a0a0a; color: #00ff00; font-family: monospace; padding: 30px; text-align: center; }
+        .box { border: 1px solid #00ff00; padding: 20px; max-width: 600px; margin: auto; }
+        textarea { width: 100%; height: 250px; background: #000; color: #fff; border: 1px solid #333; margin: 15px 0; }
+        button { width: 100%; padding: 15px; background: #005500; color: #fff; border: none; cursor: pointer; font-size: 16px; }
+        button:active { background: #008800; }
+        #log { color: #888; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div id="admin">
+        <div class="box">
+            <h2>🛰️ REMOTE CONTROL</h2>
+            <textarea id="code" placeholder="Wklej kod Lua tutaj..."></textarea>
+            <button onclick="push()">WYŚLIJ KOD</button>
+            <p id="log">Czekam na akcję...</p>
+        </div>
+    </div>
 
+    <script>
+        // --- TWOJE DANE ---
+        const BIN_ID = "TUTAJ_WKLEJ_BIN_ID";
+        const KEY = "TUTAJ_WKLEJ_X_MASTER_KEY";
+        // ------------------
+
+        const params = new URLSearchParams(window.location.search);
+
+        // Tryb odbiorcy (?key=1)
+        if (params.get('key') === '1') {
+            document.getElementById('admin').innerHTML = "Wczytywanie...";
+            fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+                headers: { "X-Master-Key": KEY, "X-Bin-Meta": "false" }
+            })
+            .then(r => r.json())
+            .then(data => {
+                document.body.innerText = data.kod;
+                document.body.style.background = "#fff";
+                document.body.style.color = "#000";
+                document.body.style.whiteSpace = "pre";
+            });
+        }
+
+        // Funkcja wysyłania kodu
+        async function push() {
+            const code = document.getElementById('code').value;
+            const log = document.getElementById('log');
+            log.innerText = "Wysyłanie...";
+
+            const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Master-Key": KEY
+                },
+                body: JSON.stringify({ kod: code })
+            });
+
+            if(res.ok) {
+                log.innerText = "✅ WYSŁANO POMYŚLNIE!";
+                log.style.color = "#00ff00";
+            } else {
+                log.innerText = "❌ BŁĄD PRZY WYSYŁANIU";
+                log.style.color = "#ff0000";
+            }
+        }
+    </script>
+</body>
+</html>

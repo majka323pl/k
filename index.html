@@ -1,67 +1,83 @@
 <!DOCTYPE html>
-<html>
+<html lang="pl">
 <head>
-    <title>Control Panel</title>
+    <meta charset="UTF-8">
+    <title>Remote Control Panel</title>
     <style>
-        body { background: #111; color: #0f0; font-family: monospace; padding: 20px; }
-        #output { background: #000; padding: 10px; border: 1px solid #0f0; white-space: pre-wrap; }
-        .ui { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 20px; }
-        textarea { width: 100%; height: 100px; background: #222; color: #fff; }
+        body { background: #121212; color: #00ff00; font-family: 'Courier New', monospace; padding: 20px; }
+        .container { max-width: 800px; margin: auto; border: 1px solid #333; padding: 20px; border-radius: 8px; }
+        textarea { width: 100%; height: 250px; background: #1e1e1e; color: #fff; border: 1px solid #444; padding: 10px; margin: 10px 0; }
+        input { background: #1e1e1e; color: white; border: 1px solid #444; padding: 8px; width: 300px; }
+        button { background: #008800; color: white; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #00aa00; }
+        #status { color: #888; font-size: 0.9em; }
     </style>
 </head>
 <body>
-    <div id="interface" class="ui">
-        <h2>Panel Nadawcy</h2>
-        <input type="password" id="token" placeholder="GitHub Token (PAT)"><br><br>
-        <textarea id="newCode" placeholder="Wpisz nowy kod Lua..."></textarea><br>
-        <button onclick="updateFile()">WYŚLIJ DO GITHUB (Zaktualizuj ?kod=1)</button>
+    <div id="main-ui" class="container">
+        <h2>🛰️ Remote Executor Panel</h2>
+        <p>Wprowadź swój GitHub Token (PAT), aby zaktualizować komendę:</p>
+        <input type="password" id="token" placeholder="GitHub Personal Access Token">
+        <textarea id="code" placeholder="-- Wpisz tutaj kod Lua, który ma się wykonać u odbiorcy..."></textarea>
+        <button onclick="updateCommand()">WYŚLIJ KOD</button>
+        <p id="status">Status: Oczekiwanie...</p>
     </div>
-
-    <h2>Aktualny Kod (?kod=1)</h2>
-    <div id="output">Ładowanie...</div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const repo = "TwójUsername/TwojeRepo";
+        const user = "TWÓJ_USERNAME"; // <-- ZMIEŃ TO
+        const repo = "NAZWA_REPO";     // <-- ZMIEŃ TO
         const path = "command.lua";
-        const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+        const apiUrl = `https://api.github.com/repos/${user}/${repo}/contents/${path}`;
 
-        // Funkcja pobierająca aktualny kod z pliku command.lua
-        async function loadCurrentCode() {
-            const res = await fetch(`https://raw.githubusercontent.com/${repo}/main/${path}?t=${Date.now()}`);
-            const text = await res.text();
-            
-            // Jeśli w URL jest ?kod=1, wyświetlamy tylko czysty kod (dla Robloxa)
+        async function init() {
+            // Jeśli w URL jest ?kod=1, wyświetl tylko surową zawartość pliku command.lua
             if (urlParams.get('kod') === '1') {
-                document.body.innerHTML = text; // Czyścimy stronę, zostaje tylko kod
+                document.body.innerHTML = "Wczytywanie kodu...";
+                const res = await fetch(`https://raw.githubusercontent.com/${user}/${repo}/main/${path}?t=${Date.now()}`);
+                const code = await res.text();
+                document.body.innerText = code;
+                document.body.style.whiteSpace = "pre";
                 return;
             }
-            document.getElementById('output').innerText = text;
         }
 
-        // Funkcja wysyłająca kod na GitHub
-        async function updateFile() {
+        async function updateCommand() {
             const token = document.getElementById('token').value;
-            const code = document.getElementById('newCode').value;
+            const code = document.getElementById('code').value;
+            const status = document.getElementById('status');
 
-            const getRes = await fetch(apiUrl, { headers: { Authorization: `token ${token}` } });
-            const getData = await getRes.json();
+            if (!token) return alert("Podaj token!");
 
-            const putRes = await fetch(apiUrl, {
-                method: "PUT",
-                headers: { Authorization: `token ${token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    message: "Remote update",
-                    content: btoa(code),
-                    sha: getData.sha
-                })
-            });
+            status.innerText = "Łączenie z GitHub...";
+            
+            try {
+                const getRes = await fetch(apiUrl, { headers: { Authorization: `token ${token}` } });
+                const getData = await getRes.json();
+                const sha = getData.sha;
 
-            if(putRes.ok) { alert("Zaktualizowano! Za chwilę kod pojawi się pod ?kod=1"); location.reload(); }
-            else { alert("Błąd! Sprawdź token."); }
+                const putRes = await fetch(apiUrl, {
+                    method: "PUT",
+                    headers: { Authorization: `token ${token}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        message: "Remote execution update",
+                        content: btoa(code), // Base64
+                        sha: sha
+                    })
+                });
+
+                if (putRes.ok) {
+                    status.innerText = "✅ Sukces! Kod został zaktualizowany.";
+                    alert("Kod wysłany. Odbiorca otrzyma go za ok. 30-60s.");
+                } else {
+                    status.innerText = "❌ Błąd: " + putRes.status;
+                }
+            } catch (e) {
+                status.innerText = "❌ Błąd połączenia.";
+            }
         }
 
-        loadCurrentCode();
+        init();
     </script>
 </body>
 </html>

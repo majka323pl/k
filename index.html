@@ -2,82 +2,85 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Remote Control Panel</title>
     <style>
-        body { background: #121212; color: #00ff00; font-family: 'Courier New', monospace; padding: 20px; }
-        .container { max-width: 800px; margin: auto; border: 1px solid #333; padding: 20px; border-radius: 8px; }
-        textarea { width: 100%; height: 250px; background: #1e1e1e; color: #fff; border: 1px solid #444; padding: 10px; margin: 10px 0; }
-        input { background: #1e1e1e; color: white; border: 1px solid #444; padding: 8px; width: 300px; }
-        button { background: #008800; color: white; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #00aa00; }
-        #status { color: #888; font-size: 0.9em; }
+        body { background: #0f0f0f; color: #00ff41; font-family: 'Consolas', monospace; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .box { background: #1a1a1a; padding: 30px; border: 1px solid #333; border-radius: 10px; width: 90%; max-width: 700px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        h2 { border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 0; color: #fff; }
+        textarea { width: 100%; height: 300px; background: #050505; color: #00ff41; border: 1px solid #444; padding: 10px; box-sizing: border-box; font-family: 'Consolas', monospace; resize: none; margin: 15px 0; }
+        input { width: 100%; padding: 12px; background: #050505; border: 1px solid #444; color: #fff; box-sizing: border-box; margin-bottom: 10px; }
+        button { width: 100%; padding: 15px; background: #0066cc; color: white; border: none; cursor: pointer; font-weight: bold; text-transform: uppercase; transition: 0.3s; }
+        button:hover { background: #0052a3; box-shadow: 0 0 10px #0066cc; }
+        #status { margin-top: 15px; font-size: 0.85em; color: #aaa; text-align: center; }
     </style>
 </head>
 <body>
-    <div id="main-ui" class="container">
-        <h2>🛰️ Remote Executor Panel</h2>
-        <p>Wprowadź swój GitHub Token (PAT), aby zaktualizować komendę:</p>
-        <input type="password" id="token" placeholder="GitHub Personal Access Token">
-        <textarea id="code" placeholder="-- Wpisz tutaj kod Lua, który ma się wykonać u odbiorcy..."></textarea>
-        <button onclick="updateCommand()">WYŚLIJ KOD</button>
-        <p id="status">Status: Oczekiwanie...</p>
+    <div id="ui" class="box">
+        <h2>CMD EXECUTION PANEL</h2>
+        <input type="password" id="token" placeholder="Wklej GitHub Personal Access Token (PAT)">
+        <textarea id="code" placeholder="-- Wpisz kod Lua do wykonania..."></textarea>
+        <button onclick="updateFile()">EXECUTE ON ALL CLIENTS</button>
+        <div id="status">Status: Gotowy</div>
     </div>
 
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const user = "majka323pl"; // <-- ZMIEŃ TO
-        const repo = "k";     // <-- ZMIEŃ TO
-        const path = "command.lua";
-        const apiUrl = `https://api.github.com/repos/${user}/${repo}/contents/${path}`;
+        const params = new URLSearchParams(window.location.search);
+        // --- KONFIGURACJA ---
+        const USER = "TWÓJ_USERNAME"; // ZMIEŃ NA SWÓJ
+        const REPO = "NAZWA_REPO";     // ZMIEŃ NA SWOJĄ
+        const PATH = "command.lua";
+        // ---------------------
 
-        async function init() {
-            // Jeśli w URL jest ?kod=1, wyświetl tylko surową zawartość pliku command.lua
-            if (urlParams.get('kod') === '1') {
-                document.body.innerHTML = "Wczytywanie kodu...";
-                const res = await fetch(`https://raw.githubusercontent.com/${user}/${repo}/main/${path}?t=${Date.now()}`);
-                const code = await res.text();
-                document.body.innerText = code;
+        async function start() {
+            if (params.get('kod') === '1') {
+                document.body.innerHTML = "Wczytywanie...";
+                const r = await fetch(`https://raw.githubusercontent.com/${USER}/${REPO}/main/${PATH}?t=${Date.now()}`);
+                const txt = await r.text();
+                document.body.innerText = txt;
                 document.body.style.whiteSpace = "pre";
+                document.body.style.background = "#fff";
+                document.body.style.color = "#000";
                 return;
             }
         }
 
-        async function updateCommand() {
+        async function updateFile() {
             const token = document.getElementById('token').value;
             const code = document.getElementById('code').value;
             const status = document.getElementById('status');
+            const url = `https://api.github.com/repos/${USER}/${REPO}/contents/${PATH}`;
 
-            if (!token) return alert("Podaj token!");
+            if (!token) return alert("Brak tokenu!");
 
-            status.innerText = "Łączenie z GitHub...";
-            
+            status.innerText = "Łączenie z GitHub API...";
             try {
-                const getRes = await fetch(apiUrl, { headers: { Authorization: `token ${token}` } });
-                const getData = await getRes.json();
-                const sha = getData.sha;
+                const getFile = await fetch(url, { headers: { Authorization: `token ${token}` } });
+                const fileData = await getFile.json();
 
-                const putRes = await fetch(apiUrl, {
+                const res = await fetch(url, {
                     method: "PUT",
                     headers: { Authorization: `token ${token}`, "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        message: "Remote execution update",
-                        content: btoa(code), // Base64
-                        sha: sha
+                        message: "Remote update " + Date.now(),
+                        content: btoa(unescape(encodeURIComponent(code))), // Poprawne kodowanie UTF-8
+                        sha: fileData.sha
                     })
                 });
 
-                if (putRes.ok) {
-                    status.innerText = "✅ Sukces! Kod został zaktualizowany.";
-                    alert("Kod wysłany. Odbiorca otrzyma go za ok. 30-60s.");
+                if (res.ok) {
+                    status.style.color = "#00ff41";
+                    status.innerText = "✅ Sukces! Kod wysłany do pliku command.lua";
                 } else {
-                    status.innerText = "❌ Błąd: " + putRes.status;
+                    const err = await res.json();
+                    status.style.color = "#ff4141";
+                    status.innerText = "❌ Błąd: " + err.message;
                 }
             } catch (e) {
-                status.innerText = "❌ Błąd połączenia.";
+                status.innerText = "❌ Krytyczny błąd połączenia.";
             }
         }
-
-        init();
+        start();
     </script>
 </body>
 </html>

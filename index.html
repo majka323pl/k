@@ -1,46 +1,67 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Remote Exec Panel</title>
+    <title>Control Panel</title>
     <style>
-        body { background: #1e1e1e; color: white; font-family: sans-serif; padding: 20px; }
-        textarea { width: 100%; height: 200px; background: #333; color: #0f0; border: 1px solid #555; }
-        input, button { margin-top: 10px; padding: 10px; }
+        body { background: #111; color: #0f0; font-family: monospace; padding: 20px; }
+        #output { background: #000; padding: 10px; border: 1px solid #0f0; white-space: pre-wrap; }
+        .ui { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 20px; }
+        textarea { width: 100%; height: 100px; background: #222; color: #fff; }
     </style>
 </head>
 <body>
-    <h2>Remote Executor</h2>
-    <input type="password" id="token" placeholder="GitHub Token (PAT)">
-    <textarea id="code" placeholder="Wpisz kod Lua tutaj..."></textarea><br>
-    <button onclick="sendCommand()">WYŚLIJ KOD</button>
+    <div id="interface" class="ui">
+        <h2>Panel Nadawcy</h2>
+        <input type="password" id="token" placeholder="GitHub Token (PAT)"><br><br>
+        <textarea id="newCode" placeholder="Wpisz nowy kod Lua..."></textarea><br>
+        <button onclick="updateFile()">WYŚLIJ DO GITHUB (Zaktualizuj ?kod=1)</button>
+    </div>
+
+    <h2>Aktualny Kod (?kod=1)</h2>
+    <div id="output">Ładowanie...</div>
 
     <script>
-        async function sendCommand() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const repo = "TwójUsername/TwojeRepo";
+        const path = "command.lua";
+        const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+
+        // Funkcja pobierająca aktualny kod z pliku command.lua
+        async function loadCurrentCode() {
+            const res = await fetch(`https://raw.githubusercontent.com/${repo}/main/${path}?t=${Date.now()}`);
+            const text = await res.text();
+            
+            // Jeśli w URL jest ?kod=1, wyświetlamy tylko czysty kod (dla Robloxa)
+            if (urlParams.get('kod') === '1') {
+                document.body.innerHTML = text; // Czyścimy stronę, zostaje tylko kod
+                return;
+            }
+            document.getElementById('output').innerText = text;
+        }
+
+        // Funkcja wysyłająca kod na GitHub
+        async function updateFile() {
             const token = document.getElementById('token').value;
-            const code = document.getElementById('code').value;
-            const repo = "TwójUsername/my-remote-exec";
-            const path = "command.lua";
-            const url = `https://api.github.com/repos/${repo}/contents/${path}`;
+            const code = document.getElementById('newCode').value;
 
-            // 1. Pobierz aktualne SHA pliku
-            const getRes = await fetch(url, { headers: { Authorization: `token ${token}` } });
+            const getRes = await fetch(apiUrl, { headers: { Authorization: `token ${token}` } });
             const getData = await getRes.json();
-            const sha = getData.sha;
 
-            // 2. Zaktualizuj plik
-            const res = await fetch(url, {
+            const putRes = await fetch(apiUrl, {
                 method: "PUT",
                 headers: { Authorization: `token ${token}`, "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    message: "Update command",
-                    content: btoa(code), // Kodowanie do Base64
-                    sha: sha
+                    message: "Remote update",
+                    content: btoa(code),
+                    sha: getData.sha
                 })
             });
 
-            if(res.ok) alert("Wysłano pomyślnie!");
-            else alert("Błąd: " .. (await res.text()));
+            if(putRes.ok) { alert("Zaktualizowano! Za chwilę kod pojawi się pod ?kod=1"); location.reload(); }
+            else { alert("Błąd! Sprawdź token."); }
         }
+
+        loadCurrentCode();
     </script>
 </body>
 </html>

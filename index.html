@@ -1,86 +1,95 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Control Panel</title>
+    <title>Remote Control</title>
     <style>
-        body { background: #0f0f0f; color: #00ff41; font-family: 'Consolas', monospace; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .box { background: #1a1a1a; padding: 30px; border: 1px solid #333; border-radius: 10px; width: 90%; max-width: 700px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        h2 { border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 0; color: #fff; }
-        textarea { width: 100%; height: 300px; background: #050505; color: #00ff41; border: 1px solid #444; padding: 10px; box-sizing: border-box; font-family: 'Consolas', monospace; resize: none; margin: 15px 0; }
-        input { width: 100%; padding: 12px; background: #050505; border: 1px solid #444; color: #fff; box-sizing: border-box; margin-bottom: 10px; }
-        button { width: 100%; padding: 15px; background: #0066cc; color: white; border: none; cursor: pointer; font-weight: bold; text-transform: uppercase; transition: 0.3s; }
-        button:hover { background: #0052a3; box-shadow: 0 0 10px #0066cc; }
-        #status { margin-top: 15px; font-size: 0.85em; color: #aaa; text-align: center; }
+        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }
+        #panel { max-width: 600px; margin: auto; border: 1px solid #333; padding: 20px; }
+        textarea { width: 100%; height: 200px; background: #111; color: #fff; border: 1px solid #0f0; }
+        button { width: 100%; padding: 15px; background: #004400; color: #fff; border: 1px solid #0f0; cursor: pointer; }
+        button:hover { background: #006600; }
+        #raw { white-space: pre; background: #fff; color: #000; padding: 0; margin: 0; display: none; }
     </style>
 </head>
 <body>
-    <div id="ui" class="box">
-        <h2>CMD EXECUTION PANEL</h2>
-        <input type="password" id="token" placeholder="Wklej GitHub Personal Access Token (PAT)">
-        <textarea id="code" placeholder="-- Wpisz kod Lua do wykonania..."></textarea>
-        <button onclick="updateFile()">EXECUTE ON ALL CLIENTS</button>
-        <div id="status">Status: Gotowy</div>
+    <!-- STRONA DO ZARZĄDZANIA -->
+    <div id="panel">
+        <h2>🛰️ Panel Sterowania</h2>
+        <textarea id="codeText" placeholder="Wpisz kod Lua..."></textarea><br><br>
+        <button onclick="sendUpdate()">ZAKTUALIZUJ I WYŚLIJ (EXECUTE)</button>
+        <p id="status">Status: Oczekiwanie...</p>
     </div>
 
-    <script>
-        const params = new URLSearchParams(window.location.search);
-        // --- KONFIGURACJA ---
-        const USER = "majka323pl"; // ZMIEŃ NA SWÓJ
-        const REPO = "k";     // ZMIEŃ NA SWOJĄ
-        const PATH = "command.lua";
-        // ---------------------
+    <!-- STRONA ?key=1 (Ukryta dla ludzi, widoczna dla Robloxa) -->
+    <div id="raw"></div>
 
-        async function start() {
-            if (params.get('kod') === '1') {
-                document.body.innerHTML = "Wczytywanie...";
-                const r = await fetch(`https://raw.githubusercontent.com/${USER}/${REPO}/main/${PATH}?t=${Date.now()}`);
-                const txt = await r.text();
-                document.body.innerText = txt;
-                document.body.style.whiteSpace = "pre";
+    <script>
+        // --- KONFIGURACJA (WPISZ SWOJE DANE) ---
+        const CONFIG = {
+            token: "TWÓJ_TOKEN_GITHUB_TUTAJ", // Wklej token tutaj
+            user: "TWÓJ_USERNAME",
+            repo: "TWOJE_REPO",
+            file: "command.lua"
+        };
+        // ---------------------------------------
+
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // FUNKCJA OBSŁUGI ?key=1
+        async function checkView() {
+            if (urlParams.get('key') === '1') {
+                document.getElementById('panel').style.display = 'none';
+                document.getElementById('raw').style.display = 'block';
                 document.body.style.background = "#fff";
-                document.body.style.color = "#000";
-                return;
+                
+                // Pobieranie aktualnej zawartości
+                const r = await fetch(`https://raw.githubusercontent.com/${CONFIG.user}/${CONFIG.repo}/main/${CONFIG.file}?t=${Date.now()}`);
+                const txt = await r.text();
+                document.getElementById('raw').innerText = txt;
             }
         }
 
-        async function updateFile() {
-            const token = document.getElementById('token').value;
-            const code = document.getElementById('code').value;
+        // FUNKCJA ZMIANY ZAWARTOŚCI (ZAPISYWANIE)
+        async function sendUpdate() {
+            const newCode = document.getElementById('codeText').value;
             const status = document.getElementById('status');
-            const url = `https://api.github.com/repos/${USER}/${REPO}/contents/${PATH}`;
+            const apiUrl = `https://api.github.com/repos/${CONFIG.user}/${CONFIG.repo}/contents/${CONFIG.file}`;
 
-            if (!token) return alert("Brak tokenu!");
+            status.innerText = "Łączenie z pamięcią...";
 
-            status.innerText = "Łączenie z GitHub API...";
             try {
-                const getFile = await fetch(url, { headers: { Authorization: `token ${token}` } });
-                const fileData = await getFile.json();
+                // 1. Pobierz SHA (identyfikator wersji)
+                const getRes = await fetch(apiUrl, {
+                    headers: { "Authorization": `token ${CONFIG.token}` }
+                });
+                const getData = await getRes.json();
 
-                const res = await fetch(url, {
+                // 2. Wyślij nową zawartość
+                const putRes = await fetch(apiUrl, {
                     method: "PUT",
-                    headers: { Authorization: `token ${token}`, "Content-Type": "application/json" },
+                    headers: { 
+                        "Authorization": `token ${CONFIG.token}`,
+                        "Content-Type": "application/json" 
+                    },
                     body: JSON.stringify({
-                        message: "Remote update " + Date.now(),
-                        content: btoa(unescape(encodeURIComponent(code))), // Poprawne kodowanie UTF-8
-                        sha: fileData.sha
+                        message: "Update via Panel",
+                        content: btoa(unescape(encodeURIComponent(newCode))),
+                        sha: getData.sha
                     })
                 });
 
-                if (res.ok) {
-                    status.style.color = "#00ff41";
-                    status.innerText = "✅ Sukces! Kod wysłany do pliku command.lua";
+                if (putRes.ok) {
+                    status.innerText = "✅ Sukces! Kod zmieniony. Roblox odbierze go za chwilę.";
                 } else {
-                    const err = await res.json();
-                    status.style.color = "#ff4141";
-                    status.innerText = "❌ Błąd: " + err.message;
+                    status.innerText = "❌ Błąd zapisu (sprawdź token lub nazwy).";
                 }
             } catch (e) {
                 status.innerText = "❌ Krytyczny błąd połączenia.";
             }
         }
-        start();
+
+        checkView();
     </script>
 </body>
 </html>
